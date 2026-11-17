@@ -13,9 +13,12 @@
 
 name: Build Henge IPA
 
-# Manual only (Actions tab > Build Henge IPA > Run workflow): pushes to main don't build an IPA.
+# This verification branch runs the normal packaging workflow on push.
 on:
   workflow_dispatch: {}
+  push:
+    branches:
+      - codex/verify-macos-sdk-fix
 
 env:
   HUSK: ${{ github.workspace }}/Husk
@@ -99,7 +102,11 @@ jobs:
 
       - name: Package Henge.ipa
         working-directory: Henge
-        run: zsh ios/scripts/package_ipa.sh
+        run: |
+          zsh ios/scripts/package_ipa.sh || {
+            tail -n 160 ios/build/DerivedData.buildlog
+            exit 1
+          }
 
       - name: Upload Henge.ipa
         uses: actions/upload-artifact@v4
@@ -110,7 +117,11 @@ jobs:
 
       - name: Package Henge.tipa
         working-directory: Henge
-        run: zsh ios/scripts/package_ipa.sh --trollstore
+        run: |
+          zsh ios/scripts/package_ipa.sh --trollstore || {
+            tail -n 160 ios/build/DerivedData.buildlog
+            exit 1
+          }
 
       - name: Upload Henge.tipa
         uses: actions/upload-artifact@v4
@@ -118,3 +129,11 @@ jobs:
           name: Henge-tipa-${{ github.sha }}
           path: /Users/runner/Desktop/Henge.tipa
           if-no-files-found: error
+
+      - name: Upload Xcode build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-build-log
+          path: Henge/ios/build/DerivedData.buildlog
+          if-no-files-found: ignore
